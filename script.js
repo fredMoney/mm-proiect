@@ -5,6 +5,7 @@ const H = my_canvas.clientHeight;
 const colors = ['#fff', '#0f0', '#00f', '#f00'];
 const rockets = [];
 const asteroids = [];
+var player;
 
 class Asteroid {
     // asteroizii se spawneaza in stanga sau in dreapta
@@ -17,7 +18,7 @@ class Asteroid {
         // se determina in care parte se spawneaza asteroidul
         if(Math.random() < 0.5) {
             // stanga
-            this.x = -37;   // 28 -> raza maxima a asteroidului
+            this.x = -37;   // 37 -> raza maxima a asteroidului
             
         } else {
             // dreapta
@@ -26,7 +27,7 @@ class Asteroid {
         }
         if(Math.random() < 0.5) {
             // sus
-            this.y = -37;   // 28 -> raza maxima a asteroidului
+            this.y = -37;   // 37 -> raza maxima a asteroidului
             
         } else {
             // jos
@@ -74,6 +75,39 @@ class Asteroid {
 class Player {
     constructor() {
         // TODO: invata transform
+        this.x = W/2;
+        this.y = H/2;
+        this.rotation = 0;
+        this.size = 15;
+        this.speed = 10;
+    }
+
+    drawPlayer() {
+        ctx.rotate(this.rotation * Math.PI / 180);
+        ctx.beginPath();
+        ctx.fillStyle = '#a05fd0';
+        ctx.moveTo(0, 0);
+        ctx.lineTo(this.size,this.size*2);
+        ctx.lineTo(-1*this.size,this.size*2);
+        ctx.lineTo(0, 0);
+        ctx.fill();
+    }
+
+    shoot() {
+
+    }
+}
+
+class Projectile {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 3;
+        this.height = 8;
+        this.speed = 10;
+    }
+
+    updateProjectile() {
 
     }
 }
@@ -104,12 +138,50 @@ function unloadAsteroids() {
 }
 
 function init() {
+    player = new Player();
+    window.addEventListener("keydown", (e) => {
+        switch (e.keyCode) {
+            // DEPLASARE
+            case 37:
+                // left"
+                c
+                player.x -= player.speed;
+                break;
+            case 38:
+                // up"
+                player.y -= player.speed;
+                break;
+            case 39:
+                // right"
+                player.x += player.speed;
+                break;
+            case 40:
+                // down"
+                player.y += player.speed;
+                break;
+
+            // ROTIRE
+            case 90:
+                // rotire stanga
+                player.rotation += 10;
+                break;
+
+            case 67:
+                // rotire dreapta
+                player.rotation -= 10;
+                break;
+        }
+    });
     window.requestAnimationFrame(draw);
 }
 
 function draw() {
     ctx.clearRect(0, 0, W, H);
 
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    player.drawPlayer();
+    ctx.restore();
     loadAsteroids();
     drawAsteroids();
     unloadAsteroids();
