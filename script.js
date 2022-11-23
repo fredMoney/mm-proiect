@@ -195,8 +195,8 @@ class GameHandler {
         return false;
     }
 
-    static unloadAsteroids() {
-        var index = -1;
+    static unloadAsteroids(index = -1) {
+        //var index = -1;
         asteroids.forEach(asteroid => {
             if(GameHandler.isOutOfBounds(asteroid.x, asteroid.y) || asteroid.health === 0) {
                 index = asteroids.indexOf(asteroid);
@@ -207,8 +207,8 @@ class GameHandler {
         }
     }
 
-    static unloadRockets() {
-        var index = -1;
+    static unloadRockets(index = -1) {
+        //var index = -1;
         rockets.forEach(rocket => {
             if(GameHandler.isOutOfBounds(rocket.x, rocket.y)) {
                 index = rockets.indexOf(rocket);
@@ -222,7 +222,12 @@ class GameHandler {
     static checkCollision() {
         asteroids.forEach(asteroid => {
             rockets.forEach(rocket => {
-                //TODO: coliziune, unload rachete
+                //TODO: verifica daca merge
+                if((rocket.x >= asteroid.x - asteroid.r || rocket.x <= asteroid.x + asteroid.r) &&
+                  (rocket.y >= asteroid.y - asteroid.r || rocket.y <= asteroid.y + asteroid.r)) {
+                    asteroid.hit();
+                    GameHandler.unloadRockets(rockets.inedxOf(rocket));
+                }
             });
         });
     }
