@@ -226,7 +226,7 @@ class GameHandler {
                 if((rocket.x >= asteroid.x - asteroid.r || rocket.x <= asteroid.x + asteroid.r) &&
                   (rocket.y >= asteroid.y - asteroid.r || rocket.y <= asteroid.y + asteroid.r)) {
                     asteroid.hit();
-                    GameHandler.unloadRockets(rockets.inedxOf(rocket));
+                    GameHandler.unloadRockets(rockets.indexOf(rocket));
                 }
             });
         });
