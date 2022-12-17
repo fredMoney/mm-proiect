@@ -7,19 +7,24 @@ const rockets = [];
 const asteroids = [];
 const BOUNDS = 40;
 var player;
+var game;
 var is_paused = false;
+// dx_s(torage) -> tine vitezele asteroizilor
 const dx_s = [];
 const dy_s = [];
 const MAX_ASTEROIDS = 20;
+// DEBUG_MODE: 0 = normal, 1 = spawn in colturi
+const DEBUG_MODE = 0;
 
 class Asteroid {
+    static id_maker;
     constructor() {
+        this.id = Asteroid.id_maker;
+        Asteroid.id_maker++;
         this.health = Math.round(1 + Math.random() * 3);
         // TODO: ajusteaza viteza ca sa fie playable
         this.dx = 0.2 + Math.random() * 1;
         this.dy = 0.2 + Math.random() * 1;
-        // this.dx = 3 + Math.random() * 1.5;
-        // this.dy = 3 + Math.random() * 1.5;
         this.delete = false;
         let spawn_location = Math.round(Math.random() * 8);
 
@@ -72,7 +77,24 @@ class Asteroid {
         };
 
         this.r = 10 + this.health * 10;
-        // this.r = 150 + this.health * 10;
+
+        switch(DEBUG_MODE) {
+            case 1:
+                if(this.id % 2) {
+                    this.y = -BOUNDS;
+                    this.x = -BOUNDS;
+                    this.dx = 1;
+                    this.dy = 1;
+                } else {
+                    this.y = H + BOUNDS;
+                    this.x = W + BOUNDS;
+                    this.dx = -1;
+                    this.dy = -1;
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     draw() {
@@ -103,9 +125,21 @@ class Asteroid {
     }
 
     isColliding(other) {
+        if(isNaN(other.r) || other.r === 0) {
+            return ((this.x - other.x) ** 2 + (this.y - other.y) ** 2 <= this.r ** 2)
+        }
         return ((this.x - other.x) ** 2 + (this.y - other.y) ** 2 <= (this.r + other.r) ** 2)
     }
 
+    isOutOfBounds() {
+        if(this.x < -BOUNDS || this.x > W + BOUNDS || this.y < -BOUNDS || this.y > H + BOUNDS) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    //!
     resolveCollision(other) {
         //TODO: Dupa ce termini si intelegi ce se intampla, redu codul incepand de aici
         // 1. Gaseste vectorii unitate normal si unitate tangential
@@ -151,15 +185,22 @@ class Asteroid {
         // var scalar_velocity_other_normal = unit_normal.x * velocity_other.x + unit_normal.y * velocity_other.y;
         // var scalar_velocity_this_tangential = unit_tangential.x * velocity_this.x + unit_tangential.y * velocity_this.y;
         // var scalar_velocity_other_tangential = unit_tangential.x * velocity_other.x + unit_tangential.y * velocity_other.y;
-        //? v_n = v.mag * 
+        //? v_n = v.mag * ...
+        let this_scalar_normal = this_velocity.dotProduct(normal_vector);
+        let other_scalar_normal = other_velocity.dotProduct(normal_vector);
+        let this_scalar_tangential = this_velocity.dotProduct(tangential_vector);
+        let other_scalar_tangential = other_velocity.dotProduct(tangential_vector);
 
         // 4. Calculeaza componenta normala a noilor viteze
         // var new_scalar_velocity_this_normal = 
         //     (scalar_velocity_this_normal * (this.health - other.health) + 2 * other.health * scalar_velocity_other_normal) / (this.health + other.health);
         // var new_scalar_velocity_other_normal =
         //     (scalar_velocity_other_normal * (other.health - this.health) + 2 * this.health * scalar_velocity_this_normal) / (this.health + other.health);
-
-        // 5. Converteste vitezele scalare in vectori
+        this_scalar_normal = 
+            (this_scalar_normal + other_scalar_normal) / 2;
+        other_scalar_normal = 
+            (this_scalar_normal + other_scalar_normal) / 2;
+        // 5. Converteste vitezele scalare in vectori 
         // var new_velocity_this_normal = {
         //     x: unit_normal.x * new_scalar_velocity_this_normal,
         //     y: unit_normal.y * new_scalar_velocity_this_normal
@@ -179,6 +220,10 @@ class Asteroid {
         //     x: unit_tangential.x * scalar_velocity_other_tangential,
         //     y: unit_tangential.y * scalar_velocity_other_tangential
         // };
+        this_velocity = normal_vector.scale(this_scalar_normal);
+        other_velocity = normal_vector.scale(other_scalar_normal);
+        let this_tangential = tangential_vector.scale(this_scalar_tangential);
+        let other_tangential = tangential_vector.scale(other_scalar_tangential);
 
         // 6. Compune noii vectori normali si tangentiali pentru a obtine noii vectori de viteza
         // var new_velocity_this = {
@@ -190,16 +235,18 @@ class Asteroid {
         //     x: new_velocity_other_normal.x + new_velocity_other_tangential.x,
         //     y: new_velocity_other_normal.y + new_velocity_other_tangential.y
         // };
+        this_velocity.add_vector(this_tangential);
+        other_velocity.add_vector(other_tangential);
 
         // 7. Atribuim asteroizilor noile viteze pe componentele x si y
-        // this.dx = new_velocity_this.x;
-        // this.dy = new_velocity_this.y;
-        // other.dx = new_velocity_other.x;
-        // other.dy = new_velocity_other.y;
+        this.dx = this_velocity.x;
+        this.dy = this_velocity.y;
+        other.dx = -other_velocity.x;
+        other.dy = -other_velocity.y;
     }
 }
 
-//TODO: Implementeaza clasa Vector2D de aici: http://www.danielsoltyka.com/programming/2010/05/30/c-vector2d-rectangle-classes/
+//Sursa clasa Vector2D de aici: http://www.danielsoltyka.com/programming/2010/05/30/c-vector2d-rectangle-classes/
 class Vector2D {
     //? Se asuma ca originea vectorului e (0,0)
     constructor(x, y) {
@@ -226,6 +273,7 @@ class Vector2D {
     scale(scaling_factor) {
         this.x *= scaling_factor;
         this.y *= scaling_factor;
+        return this;
     }
 
     add_vector(other) {
@@ -242,8 +290,9 @@ class Player {
         this.size = 15;
         this.max_speed = 24;
         this.acc = this.max_speed/8;
-        this.speed_x = 0;
-        this.speed_y = 0;
+        this.dx = 0;
+        this.dy = 0;
+        this.lives = 4;
     }
 
     drawPlayer() {
@@ -264,23 +313,29 @@ class Player {
 
     reduceSpeed() {
         let brake_speed = 0.1;
-        if(this.speed_x > 0) {
-            this.speed_x -= brake_speed;
+        if(this.dx > 0 && this.dx < 0.1) {
+            this.dx = 0;
         }
-        if(this.speed_x < 0) {
-            this.speed_x += brake_speed;
+        if(this.dy > 0 && this.dy < 0.1) {
+            this.dy = 0;
         }
-        if(this.speed_y > 0) {
-            this.speed_y -= brake_speed;
+        if(this.dx > 0) {
+            this.dx -= brake_speed;
         }
-        if(this.speed_y < 0) {
-            this.speed_y += brake_speed;
+        if(this.dx < 0) {
+            this.dx += brake_speed;
+        }
+        if(this.dy > 0) {
+            this.dy -= brake_speed;
+        }
+        if(this.dy < 0) {
+            this.dy += brake_speed;
         }
     }
 
     update() {
-        this.x += this.speed_x;
-        this.y += this.speed_y;
+        this.x += this.dx;
+        this.y += this.dy;
         if(this.x < 0) {
             this.x = W - 1;
         }
@@ -296,17 +351,22 @@ class Player {
     }
 
     moveX(dx) {
-        if(this.speed_x < this.max_speed && this.speed_x > this.max_speed*(-1))
-            this.speed_x += dx;
+        if(this.dx < this.max_speed && this.dx > this.max_speed*(-1))
+            this.dx += dx;
     }
 
     moveY(dy) {
-        if(this.speed_y < this.max_speed && this.speed_y > this.max_speed*(-1))
-            this.speed_y += dy;
+        if(this.dy < this.max_speed && this.dy > this.max_speed*(-1))
+            this.dy += dy;
     }
 
-    coords() {
-        console.log(`x:${this.x}, y:${this.y}, dx:${this.speed_x}, dy${this.speed_y}`);
+    resolveCollision() {
+        console.log('collision!');
+        this.lives--;
+    }
+
+    log() {
+        console.log(`x:${this.x}, y:${this.y}, dx:${this.dx}, dy${this.dy}`);
     }
 }
 
@@ -333,49 +393,107 @@ class Rocket {
         this.y += this.speed * Math.sin(this.rotation);
     }
 
+    //! marked for delete
     coords() {
         console.log(`x:${this.x}, y:${this.y}`);
     }
+
+    isOutOfBounds() {
+        if(this.x < -BOUNDS || this.x > W + BOUNDS || this.y < -BOUNDS || this.y > H + BOUNDS) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
 
-class GameHandler {
-    static loadAsteroids() {
+
+// STARILE JOCULUI: (0)Start -> (1)In curs -> (2)Pauza -> (3)Game Over
+// Start: -init tabla de joc
+//
+// Pauza: -playerul a pierdut o viata
+//        -se afiseaza numarul de vieti
+//        -se afiseaza hint
+//        -dupa 3 secunde se schimba starea in (1)In curs
+class Game {
+    constructor() {
+        this.state = 0;
+    }
+
+    play() {
+        switch(this.state) {
+            case 0:
+                this.start();
+                break;
+            case 1:
+                this.ongoing();
+                break;
+            case 2:
+                this.paused();
+                break;
+            case 3:
+                this.gameOver();
+                break;
+            default:
+                break;
+        }
+    }
+
+    start() {
+        Asteroid.id_maker = 0;
+        player = new Player();
+
+        this.state = 1;
+    }
+
+    ongoing() {
+        game.unloadObjects(asteroids);
+        game.unloadObjects(rockets);
+
+        game.drawRockets();
+        game.drawPlayer();
+        game.drawAsteroids();
+
+        game.resolveCollisions();
+    }
+
+    paused() {
+
+    }
+
+    gameOver() {
+
+    }
+
+    loadAsteroids() {
         if(asteroids.length < MAX_ASTEROIDS) {
             asteroids.push(new Asteroid());
         }
     }
 
-    static drawAsteroids() {
+    drawAsteroids() {
         asteroids.forEach(asteroid => {
             asteroid.draw();
             asteroid.update();
         });
     }
 
-    static drawRockets() {
+    drawRockets() {
         rockets.forEach(rocket => {
             rocket.draw();
             rocket.update();
         })
     }
 
-    static isOutOfBounds(obj) {
-        if(obj.x < -BOUNDS || obj.x > W + BOUNDS || obj.y < -BOUNDS || obj.y > H + BOUNDS) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    static unloadObjects(objArr) {
+    unloadObjects(objArr) {
         for(let i = 0; i < objArr.length; i++) {
-            if(GameHandler.isOutOfBounds(objArr[i]) || isNaN(objArr[i].x) || objArr[i].delete === true) {
+            if(objArr[i].isOutOfBounds() || isNaN(objArr[i].x) || objArr[i].delete === true) {
                 objArr.splice(i, 1);
             }
         }
     }
 
-    static collisionAsteroidRocket() {
+    collisionAsteroidRocket() {
         for (let i = 0; i < asteroids.length; i++) {
             for(let j = 0; j < rockets.length; j++) {
                 if(((asteroids[i].x - rockets[j].x) ** 2 + (asteroids[i].y - rockets[j].y) ** 2) <=
@@ -387,7 +505,7 @@ class GameHandler {
         }
     }
 
-    static collisionAsteroidAsteroid() {
+    collisionAsteroidAsteroid() {
         for(let i = 0; i < asteroids.length - 1; i++) {
             for(let j = i + 1; j < asteroids.length; j++) {
                 if(asteroids[i].isColliding(asteroids[j])) {
@@ -397,10 +515,55 @@ class GameHandler {
             }
         }
     }
+
+    collisionAsteroidPlayer() {
+        //TODO: hitbox-ul nu se roteste odata cu nava. solve this
+        var player_collision_points = [
+            new Vector2D(player.x, player.y - player.size),
+            new Vector2D(player.x - player.size, player.y + player.size),
+            new Vector2D(player.x + player.size, player.y + player.size),
+            new Vector2D(player.x - player.size/2, player.y),
+            new Vector2D(player.x + player.size/2, player.y)
+        ]
+        
+        for(let i = 0; i < asteroids.length; i++) {
+            for(let j = 0; j < player_collision_points.length; j++) {
+                if(asteroids[i].isColliding(player_collision_points[j])) {
+                    this.playerHit();
+                }
+            }
+        }
+    }
+
+    resolveCollisions() {
+        this.collisionAsteroidRocket();
+        // this.collisionAsteroidAsteroid();
+        this.collisionAsteroidPlayer();
+    }
+
+    drawPlayer() {
+        ctx.save();
+        player.drawPlayer();
+        player.update();
+        player.reduceSpeed();
+        ctx.restore();
+    }
+
+    playerHit() {
+        player.resolveCollision();
+        if(player.lives <= 0) {
+            this.gameOver();
+        }
+        this.state = 2;
+    }
+
+    showLogs() {
+        player.log();
+    }
 }
 
 function init() {
-    player = new Player();
+    game = new Game();
     window.addEventListener("keydown", (e) => {
         switch (e.keyCode) {
             // DEPLASARE
@@ -422,6 +585,7 @@ function init() {
                 break;
 
             // ROTIRE
+            //? aplica acelasi principiu de la miscare si la rotire
             case 90:
                 // rotire stanga -> z
                 player.rotation -= 10 * Math.PI/180;
@@ -459,27 +623,18 @@ function init() {
             is_paused = true;
         }
     });
-    setInterval(GameHandler.loadAsteroids, 1000);
+    setInterval(game.loadAsteroids, 1000);
     window.requestAnimationFrame(draw);
 }
 
 function draw() {
     ctx.clearRect(0, 0, W, H);
 
-    GameHandler.unloadObjects(asteroids);
-    GameHandler.unloadObjects(rockets);
-    GameHandler.drawRockets();
+    game.play();
+
     
-    ctx.save();
-    player.drawPlayer();
-    player.update();
-    player.reduceSpeed();
-    ctx.restore();
-    
-    // GameHandler.loadAsteroids();
-    GameHandler.drawAsteroids();
-    GameHandler.collisionAsteroidRocket();
-    GameHandler.collisionAsteroidAsteroid();
+
+    // game.showLogs();
 
     window.requestAnimationFrame(draw);
 }
