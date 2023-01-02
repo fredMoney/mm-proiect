@@ -9,7 +9,6 @@ const BOUNDS = 40;
 var player;
 var game;
 var is_paused = false;
-// dx_s(torage) -> tine vitezele asteroizilor
 const dx_s = [];
 const dy_s = [];
 const MAX_ASTEROIDS = 20;
@@ -120,8 +119,11 @@ class Asteroid {
     hit() {
         this.health--;
         this.r = 10 + this.health * 10;
-        if(this.health === 0)
+        if(this.health === 0) {
             this.delete = true;
+            player.points += 20;
+            player.score += 20;
+        }
     }
 
     isColliding(other) {
@@ -293,6 +295,8 @@ class Player {
         this.dx = 0;
         this.dy = 0;
         this.lives = 4;
+        this.points = 0;
+        this.score = 0;
     }
 
     drawPlayer() {
@@ -360,11 +364,6 @@ class Player {
             this.dy += dy;
     }
 
-    resolveCollision() {
-        console.log('collision!');
-        this.lives--;
-    }
-
     log() {
         console.log(`x:${this.x}, y:${this.y}, dx:${this.dx}, dy${this.dy}`);
     }
@@ -418,9 +417,12 @@ class Rocket {
 class Game {
     constructor() {
         this.state = 0;
+        this.counter = 0;
+        this.intervalCounter = null;
+        this.intervalAsteroids = null;
     }
 
-    play() {
+    run() {
         switch(this.state) {
             case 0:
                 this.start();
@@ -441,28 +443,48 @@ class Game {
 
     start() {
         Asteroid.id_maker = 0;
-        player = new Player();
+        asteroids.length = 0;
+        rockets.length = 0;
+
+        this.intervalAsteroids = setInterval(this.loadAsteroids, 1000);
+
+        window.addEventListener("keydown", this.handleControls);
 
         this.state = 1;
     }
 
     ongoing() {
-        game.unloadObjects(asteroids);
-        game.unloadObjects(rockets);
+        this.unloadObjects(asteroids);
+        this.unloadObjects(rockets);
 
-        game.drawRockets();
-        game.drawPlayer();
-        game.drawAsteroids();
+        this.drawRockets();
+        this.drawPlayer();
+        this.drawAsteroids();
+        this.drawLives();
+        this.drawScore();
 
-        game.resolveCollisions();
+        this.resolveCollisions();
+        this.resolvePoints();
     }
 
     paused() {
-
+        window.removeEventListener('keydown', this.handleControls)
+        if(this.counter <= 0) {
+            clearInterval(this.intervalCounter);
+            this.state = 0;
+        }
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('vieti ramase: ' + player.lives.toString(), W/2, H/2);
+        ctx.fillText('pornesti in ' + this.counter.toString(), W/2, H/2 + 30);
+        ctx.restore();
     }
 
     gameOver() {
-
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('joc terminat!', W/2, H/2);
+        ctx.restore();
     }
 
     loadAsteroids() {
@@ -485,12 +507,32 @@ class Game {
         })
     }
 
+    drawLives() {
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('vieti: ' + player.lives.toString(), 10, 30);
+        ctx.restore();
+    }
+
+    drawScore() {
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('scor: ' + player.score.toString(), 10, 60);
+        ctx.restore();
+    }
+
     unloadObjects(objArr) {
         for(let i = 0; i < objArr.length; i++) {
             if(objArr[i].isOutOfBounds() || isNaN(objArr[i].x) || objArr[i].delete === true) {
                 objArr.splice(i, 1);
             }
         }
+    }
+
+    resolveCollisions() {
+        this.collisionAsteroidRocket();
+        // this.collisionAsteroidAsteroid();
+        this.collisionAsteroidPlayer();
     }
 
     collisionAsteroidRocket() {
@@ -530,15 +572,10 @@ class Game {
             for(let j = 0; j < player_collision_points.length; j++) {
                 if(asteroids[i].isColliding(player_collision_points[j])) {
                     this.playerHit();
+                    break;
                 }
             }
         }
-    }
-
-    resolveCollisions() {
-        this.collisionAsteroidRocket();
-        // this.collisionAsteroidAsteroid();
-        this.collisionAsteroidPlayer();
     }
 
     drawPlayer() {
@@ -550,21 +587,28 @@ class Game {
     }
 
     playerHit() {
-        player.resolveCollision();
-        if(player.lives <= 0) {
-            this.gameOver();
-        }
+        player.lives--;
+        player.x = W/2;
+        player.y = H/2;
+        player.dx = 0;
+        player.dy = 0;
         this.state = 2;
+        this.counter = 5;
+        this.intervalCounter = setInterval(() => this.counter--, 1000);
+        clearInterval(this.intervalAsteroids);
+        if(player.lives === 0) {
+            this.state = 3;
+        }
     }
 
-    showLogs() {
-        player.log();
+    resolvePoints() {
+        if(player.points === 100) {
+            player.lives++;
+            player.points -= 100;
+        }
     }
-}
 
-function init() {
-    game = new Game();
-    window.addEventListener("keydown", (e) => {
+    handleControls(e) {
         switch (e.keyCode) {
             // DEPLASARE
             case 37:
@@ -585,7 +629,7 @@ function init() {
                 break;
 
             // ROTIRE
-            //? aplica acelasi principiu de la miscare si la rotire
+            //TODO: aplica acelasi principiu de la miscare si la rotire
             case 90:
                 // rotire stanga -> z
                 player.rotation -= 10 * Math.PI/180;
@@ -603,36 +647,26 @@ function init() {
                 }
                 break;
         }
-    });
-    // Pause functionality
-    my_canvas.addEventListener("click", (e) => {
-        if(is_paused) {
-            for(let i = 0; i < asteroids.length; i++) {
-                asteroids[i].dx = dx_s[i];
-                asteroids[i].dy = dy_s[i];
-            }
-            is_paused = false;
-        } else {
-            for(let i = 0; i < asteroids.length; i++) {
-                dx_s[i] = asteroids[i].dx;
-                dy_s[i] = asteroids[i].dy;
+    }
 
-                asteroids[i].dx = 0;
-                asteroids[i].dy = 0;
-            }
-            is_paused = true;
-        }
-    });
-    setInterval(game.loadAsteroids, 1000);
+    showLogs() {
+        player.log();
+    }
+}
+
+function init() {
+    ctx.font = '30px Arial';
+
+    game = new Game();
+    player = new Player();
+        
     window.requestAnimationFrame(draw);
 }
 
 function draw() {
     ctx.clearRect(0, 0, W, H);
 
-    game.play();
-
-    
+    game.run();
 
     // game.showLogs();
 
